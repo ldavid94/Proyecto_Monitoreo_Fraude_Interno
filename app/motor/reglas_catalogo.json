@@ -1,0 +1,260 @@
+{
+  "version_catalogo": "1.0",
+  "nota_general": "Reglas deterministas y declarativas, una por tipología de fraude interno del documento de tipologías. La criticidad es la criticidad base de la tipología y es fija por regla. Los factores agravantes se muestran en la explicación de la señal, no cambian la criticidad. Toda señal es para revisión humana y no constituye conclusión.",
+  "reglas": [
+    {
+      "id_regla": "R-03",
+      "nombre": "Privilegio elevado que no se revierte en la jornada",
+      "tipo": "privilegio_sin_reversion",
+      "activa": true,
+      "version": 1,
+      "criticidad": "MEDIO",
+      "correlacion": "USUARIO",
+      "parametros": {
+        "tipo_evento": "ELEVACION_PRIVILEGIO",
+        "tipo_reversion": "REVERSION_PRIVILEGIO",
+        "horario_inicio": "07:00",
+        "cierre_jornada": "19:00",
+        "dias_habiles": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "nivel_maximo": 5,
+        "sensibilidad_minima": 3,
+        "horas_accesos_posteriores": 12
+      },
+      "descripcion": "Si una elevación de privilegio ocurre dentro del horario laboral y el mismo usuario no la revierte antes del cierre de la jornada, se genera una señal.",
+      "plantilla_explicacion": "{id_regla}: elevación de privilegio del usuario {id_usuario}, de nivel {valor_anterior} a nivel {valor_nuevo}, en {fecha_hora}, sin reversión antes del cierre de la jornada a las {cierre}. {factores} Señal para revisión humana; no constituye conclusión.",
+      "ventana_minutos": 720,
+      "pasos": [
+        [
+          1,
+          "ELEVACION_PRIVILEGIO",
+          "Elevación de privilegio dentro del horario laboral sin reversión del mismo usuario antes del cierre de la jornada"
+        ]
+      ],
+      "tipologia": "T-03"
+    },
+    {
+      "id_regla": "R-05",
+      "nombre": "Elevación de privilegio no autorizada seguida de acceso a módulo sensible",
+      "tipo": "elevacion_no_autorizada_acceso",
+      "activa": true,
+      "version": 1,
+      "criticidad": "ALTO",
+      "correlacion": "USUARIO",
+      "parametros": {
+        "tipo_evento_inicio": "ELEVACION_PRIVILEGIO",
+        "tipo_reversion": "REVERSION_PRIVILEGIO",
+        "ventana_minutos": 60,
+        "ventana_inclusiva": true,
+        "horario_inicio": "07:00",
+        "horario_fin": "19:00",
+        "dias_habiles": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "sensibilidad_minima": 3,
+        "resultado_acceso": "EXITOSO",
+        "salto_nivel_agravante": 2,
+        "modulos_administracion": [
+          "MOD-BD-ADMIN",
+          "MOD-PERMISOS"
+        ],
+        "minutos_reversion_agravante": 15
+      },
+      "descripcion": "Si una elevación de privilegio no tiene autorizador, es autoautorizada o ocurre fuera del horario laboral, y el mismo usuario accede con éxito a un módulo de sensibilidad alta dentro de la ventana, se genera una señal.",
+      "plantilla_explicacion": "{id_regla}: elevación de privilegio del usuario {id_usuario}, de nivel {valor_anterior} a nivel {valor_nuevo} ({id_evento_1}, {t1}). Condiciones cumplidas: {motivos}. Siguió un acceso a {id_recurso} ({id_evento_2}, {t2}) a los {minutos} min {segundos} s (ventana {ventana} min). {factores} Señal para revisión humana; no constituye conclusión.",
+      "ventana_minutos": 60,
+      "pasos": [
+        [
+          1,
+          "ELEVACION_PRIVILEGIO",
+          "Elevación sin autorizador, autoautorizada o fuera del horario laboral (instante t1)"
+        ],
+        [
+          2,
+          "ACCESO_MODULO",
+          "Acceso exitoso del mismo usuario a un módulo con sensibilidad >= 3, con 0 < t2 - t1 <= ventana_minutos"
+        ]
+      ],
+      "tipologia": "T-02"
+    },
+    {
+      "id_regla": "R-07",
+      "nombre": "Cambio de límite seguido de operación sobre umbral",
+      "tipo": "secuencia_limite_operacion",
+      "activa": true,
+      "version": 1,
+      "criticidad": "ALTO",
+      "correlacion": "CUENTA",
+      "parametros": {
+        "tipo_evento_inicio": "CAMBIO_LIMITE",
+        "tipo_evento_fin": "OPERACION",
+        "ventana_minutos": 30,
+        "ventana_inclusiva": true,
+        "umbral_estricto": true,
+        "orden_estricto": true,
+        "contexto_minutos_previos": 5,
+        "ratio_monto_agravante": 1.5,
+        "roles_gestionan_limites": [
+          "SUPERVISOR",
+          "GERENTE_SUCURSAL"
+        ]
+      },
+      "descripcion": "Si ocurre un cambio de límite y posteriormente una operación sobre el umbral en la misma cuenta dentro de la ventana, se genera una señal para revisión humana. No determina intención ni responsabilidad.",
+      "plantilla_explicacion": "{id_regla}: cambio de límite de la cuenta {id_cuenta} ({id_evento_1}, {t1}) seguido de operación {tipo_operacion} por Q {monto} sobre el umbral de Q {umbral} ({id_evento_2}, {t2}) a los {minutos} min {segundos} s (ventana {ventana} min). {factores} Señal para revisión humana; no constituye conclusión.",
+      "ventana_minutos": 30,
+      "pasos": [
+        [
+          1,
+          "CAMBIO_LIMITE",
+          "Cambio de límite sobre la cuenta (instante t1)"
+        ],
+        [
+          2,
+          "OPERACION",
+          "Operación en la misma cuenta con monto > umbral_operacion de la cuenta, con 0 < t2 - t1 <= ventana_minutos"
+        ]
+      ],
+      "tipologia": "T-01"
+    },
+    {
+      "id_regla": "R-09",
+      "nombre": "Accesos a módulos ajenos al rol",
+      "tipo": "accesos_modulos_ajenos",
+      "activa": true,
+      "version": 1,
+      "criticidad": "MEDIO",
+      "correlacion": "USUARIO",
+      "parametros": {
+        "min_accesos": 2,
+        "ventana_minutos": 30,
+        "tipo_elevacion": "ELEVACION_PRIVILEGIO",
+        "tipo_reversion": "REVERSION_PRIVILEGIO",
+        "resultado_acceso": "EXITOSO",
+        "horario_inicio": "07:00",
+        "horario_fin": "19:00",
+        "dias_habiles": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "sensibilidad_minima": 3,
+        "modulos_fondos": [
+          "MOD-CAJA",
+          "MOD-TRANSFER"
+        ],
+        "modulos_habituales_por_rol": {
+          "ADMIN_SEGURIDAD": [
+            "MOD-AUTH",
+            "MOD-PERMISOS",
+            "MOD-REPORTES",
+            "MOD-SOPORTE"
+          ],
+          "ANALISTA_TI": [
+            "MOD-AUTH",
+            "MOD-CUENTAS",
+            "MOD-REPORTES",
+            "MOD-SOPORTE"
+          ],
+          "CAJERO": [
+            "MOD-AUTH",
+            "MOD-CAJA",
+            "MOD-CUENTAS",
+            "MOD-REPORTES"
+          ],
+          "DBA": [
+            "MOD-AUTH",
+            "MOD-REPORTES",
+            "MOD-SOPORTE"
+          ],
+          "EJECUTIVO_SERVICIO": [
+            "MOD-AUTH",
+            "MOD-CUENTAS",
+            "MOD-REPORTES",
+            "MOD-TRANSFER"
+          ],
+          "GERENTE_SUCURSAL": [
+            "MOD-AUTH",
+            "MOD-CUENTAS",
+            "MOD-LIMITES",
+            "MOD-REPORTES"
+          ],
+          "OFICIAL_OPERACIONES": [
+            "MOD-AUTH",
+            "MOD-CUENTAS",
+            "MOD-REPORTES",
+            "MOD-TRANSFER"
+          ],
+          "SUPERVISOR": [
+            "MOD-AUTH",
+            "MOD-CAJA",
+            "MOD-CUENTAS",
+            "MOD-LIMITES",
+            "MOD-REPORTES"
+          ]
+        }
+      },
+      "descripcion": "Si un usuario accede con éxito, en poco tiempo, a dos o más módulos que no forman parte de los módulos habituales de su rol y no tiene una elevación de privilegio vigente, se genera una señal.",
+      "plantilla_explicacion": "{id_regla}: {n_accesos} accesos exitosos del usuario {id_usuario}, rol {rol}, a módulos ajenos a su rol, {lista}, entre {t_primero} y {t_ultimo}, sin elevación de privilegio vigente. {factores} Señal para revisión humana; no constituye conclusión.",
+      "ventana_minutos": 30,
+      "pasos": [
+        [
+          1,
+          "ACCESO_MODULO",
+          "Dos o más accesos exitosos y seguidos del mismo usuario a módulos fuera de los habituales de su rol, sin elevación de privilegio vigente"
+        ]
+      ],
+      "tipologia": "T-04"
+    },
+    {
+      "id_regla": "R-11",
+      "nombre": "Ráfaga de fallos de autenticación y acceso denegado a módulo sensible",
+      "tipo": "rafaga_fallos_acceso_denegado",
+      "activa": true,
+      "version": 1,
+      "criticidad": "MEDIO",
+      "correlacion": "USUARIO",
+      "parametros": {
+        "tipo_evento_fallo": "LOGIN_FALLIDO",
+        "min_fallos": 3,
+        "ventana_fallos_minutos": 10,
+        "ventana_acceso_minutos": 15,
+        "sensibilidad_minima": 3,
+        "resultado_acceso": "DENEGADO",
+        "modulos_gestion": [
+          "MOD-LIMITES",
+          "MOD-PERMISOS"
+        ],
+        "dias_repeticion_agravante": 2
+      },
+      "descripcion": "Si un usuario acumula al menos N fallos de autenticación dentro de la ventana de fallos y, dentro de los minutos siguientes al último fallo, tiene un acceso denegado a un módulo de sensibilidad alta, se genera una señal.",
+      "plantilla_explicacion": "{id_regla}: {n_fallos} fallos de autenticación del usuario {id_usuario} entre {t_primero} y {t_ultimo}, seguidos de acceso denegado a {id_recurso} ({id_evento_2}, {t2}) a los {minutos} min {segundos} s del último fallo. {factores} Señal para revisión humana; no constituye conclusión.",
+      "ventana_minutos": 10,
+      "pasos": [
+        [
+          1,
+          "LOGIN_FALLIDO",
+          "Tres o más fallos de autenticación del mismo usuario dentro de la ventana"
+        ],
+        [
+          2,
+          "ACCESO_MODULO",
+          "Acceso denegado a un módulo con sensibilidad >= 3 dentro de 15 min después del último fallo"
+        ]
+      ],
+      "tipologia": "T-05"
+    }
+  ],
+  "formula_criticidad": "nivel_riesgo = criticidad base de la tipología de la regla que genera la señal. No se pondera por rol, privilegio ni historial de la persona. Los factores agravantes presentes se listan en la explicación para apoyar la decisión del analista.",
+  "nota_ventana": "ventana_minutos es la columna de la tabla reglas. En R-03 equivale al plazo máximo de reversión, en R-09 es 1 porque el CHECK exige un valor mayor que cero y la regla no usa ventana."
+}
